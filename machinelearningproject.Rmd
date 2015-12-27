@@ -1,0 +1,90 @@
+---
+title: "Machine Learning Project"
+author: "MJ"
+date: "Wednesday, December 23, 2015"
+output:   
+    html_document:
+    keep_md: yes 
+---
+
+```{r, message=F, warning=F}
+library(caret)
+library(ggplot2)
+library(rattle)
+```
+
+### Pre-Processing
+```{r}
+trainData = read.csv("data/pml-training.csv", na.strings=c("NA","","#DIV/0!"))
+
+naThreshold <- colSums(is.na(trainData))/nrow(trainData)
+naColNames <- names(trainData) %in% names(naThreshold[naThreshold > 0.75])
+trainData = trainData[!naColNames]
+
+nzvColInd <- nearZeroVar(trainData)
+nzvColNames <- names(trainData) %in% names(trainData[nzvColInd])
+trainData <- trainData[!nzvColNames]
+
+irrelevantColNames <- names(trainData) %in% names(trainData[c(1:6)])
+trainData = trainData[!irrelevantColNames]
+
+excluded_ColNames = c(naColNames, nzvColNames, irrelevantColNames)
+```
+
+### Create Data Partition
+```{r}
+set.seed(825)
+inTrain <- createDataPartition(y=trainData$classe, p=0.70, list=F)
+training <- trainData[inTrain, ]
+validation <- trainData[-inTrain, ]
+```
+
+### Model Building
+```{r warning=F}
+corMat <- abs(cor(training[, -53]))
+diag(corMat) <- 0 # Set correlation between variables and itself to zero
+which(corMat > 0.85, arr.ind=T) # which variables have corr > 0.85
+
+# We can see that there are some variables with very high correlation (>0.85). As a result we can reduce the 
+# the number of variables using PCA
+
+ctrl <- trainControl(method="cv", number=5) #set up control variables
+model_rf<-train(classe~., data=training, method="rf", trControl=ctrl, preProcess=c("pca"))
+model_rf$finalModel
+
+model_knn<-train(classe~.,data=training,method="knn", trControl=ctrl, preProcess=c("pca"))
+model_knn$finalModel
+
+```
+
+### Model Validations
+```{r}
+pred_rf <- predict(model_rf, validation)
+confusionMat_rf <- confusionMatrix(pred_rf, validation$classe)
+confusionMat_rf
+
+pred_knn <- predict(model_knn, validation)
+confusionMat_knn <- confusionMatrix(pred_knn, validation$classe)
+confusionMat_knn
+```
+
+From the Confusion Matrix about the Accuracy for Random Forest algorithm is 0.9941
+Therefore the Out of Sample Error for Random Forest is 0.006
+
+From the Confusion Matrix about the Accuracy for KNN algorithm is 0.9147
+Therefore the Out of Sample Error for Random Forest is 0.0853
+
+Since Random Forest has lower Out of Sample Error, therefore we will use Random Forest Model for prediction on the test data
+
+### Prediction on the Test Data
+```{r}
+##Test 
+testData = read.csv("data/pml-testing.csv", na.strings=c("NA","","#DIV/0!"))
+testData = testData[!naColNames]
+testData = testData[!nzvColNames]
+testData = testData[!irrelevantColNames]
+
+prediction <- predict(model_rf, testData)
+
+prediction
+```
