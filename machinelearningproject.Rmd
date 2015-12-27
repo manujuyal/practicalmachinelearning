@@ -7,13 +7,23 @@ output:
     keep_md: yes 
 ---
 
+###Overview:  
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants
+
+
+###Download Required Library
 ```{r, message=F, warning=F}
 library(caret)
-library(ggplot2)
-library(rattle)
 ```
 
 ### Pre-Processing
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
+
+Approach: 
+While reading the data from the file, first convert the values for missing and errorneous data as NA. Then, remove the variable columns with more than 75% of NA values. After that remove the columns with near zero variance. Finally, looked at the remaining data and removed the columns, such as, dates, ids, etc. which are not relevant for this analysis.
+
 ```{r}
 trainData = read.csv("data/pml-training.csv", na.strings=c("NA","","#DIV/0!"))
 
@@ -32,6 +42,7 @@ excluded_ColNames = c(naColNames, nzvColNames, irrelevantColNames)
 ```
 
 ### Create Data Partition
+The training data is divided into training and validation sets in the ratio 7:3
 ```{r}
 set.seed(825)
 inTrain <- createDataPartition(y=trainData$classe, p=0.70, list=F)
@@ -40,24 +51,28 @@ validation <- trainData[-inTrain, ]
 ```
 
 ### Model Building
+Even though, the training data is cleaned but as part of further pre-processing, we look at the correlation between the remaining variables as well.  
 ```{r warning=F}
 corMat <- abs(cor(training[, -53]))
 diag(corMat) <- 0 # Set correlation between variables and itself to zero
-which(corMat > 0.85, arr.ind=T) # which variables have corr > 0.85
+which(corMat > 0.95, arr.ind=T) # which variables have corr > 0.95
+```
 
-# We can see that there are some variables with very high correlation (>0.85). As a result we can reduce the 
-# the number of variables using PCA
+We can see that there are some variables with very high correlation (>0.85). As a result we use PCA whicle building our models to reduce number of variables.
 
-ctrl <- trainControl(method="cv", number=5) #set up control variables
+As part of the model evaluation for this project, two models were built using Random Forest and KNN algorithms. For cross-validation, repeated cv was used with 10-folds and repeated 5 times
+```{r warning=F}
+ctrl <- trainControl(method="repeatedcv", number=10, repeats=5) #set up control variables
+
 model_rf<-train(classe~., data=training, method="rf", trControl=ctrl, preProcess=c("pca"))
 model_rf$finalModel
 
 model_knn<-train(classe~.,data=training,method="knn", trControl=ctrl, preProcess=c("pca"))
 model_knn$finalModel
-
 ```
 
 ### Model Validations
+The validation dataset was evaluate for both Random Forest and KNN Models 
 ```{r}
 pred_rf <- predict(model_rf, validation)
 confusionMat_rf <- confusionMatrix(pred_rf, validation$classe)
@@ -68,15 +83,13 @@ confusionMat_knn <- confusionMatrix(pred_knn, validation$classe)
 confusionMat_knn
 ```
 
-From the Confusion Matrix about the Accuracy for Random Forest algorithm is 0.9941
-Therefore the Out of Sample Error for Random Forest is 0.006
-
-From the Confusion Matrix about the Accuracy for KNN algorithm is 0.9147
-Therefore the Out of Sample Error for Random Forest is 0.0853
+As per the Confusion Matrix, the accuracy of the model using Random Forest is 0.9782 and for KNN is 0.9592
+Therefore the Out of Sample Error for Random Forest (0.006) < KNN (0.0853)
 
 Since Random Forest has lower Out of Sample Error, therefore we will use Random Forest Model for prediction on the test data
 
 ### Prediction on the Test Data
+Finally, the test was downloaded and the results were predicted using the Random Forest model
 ```{r}
 ##Test 
 testData = read.csv("data/pml-testing.csv", na.strings=c("NA","","#DIV/0!"))
