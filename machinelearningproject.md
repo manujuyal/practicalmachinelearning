@@ -62,7 +62,7 @@ We can see that there are some variables with very high correlation (>0.85). As 
 
 As part of the model evaluation for this project, two models were built using Random Forest and KNN algorithms. For cross-validation, repeated cv was used with 10-folds and repeated 5 times
 ```{r warning=F}
-ctrl <- trainControl(method="repeatedcv", number=10, repeats=5) #set up control variables
+ctrl <- trainControl(method="cv", number=5) #set up control variables
 
 model_rf<-train(classe~., data=training, method="rf", trControl=ctrl, preProcess=c("pca"))
 model_rf$finalModel
